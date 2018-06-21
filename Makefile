@@ -7,7 +7,7 @@ ifeq ($(ARCH),amd64)
 	ARCHTAG:=
 	GO_BUILD_VER?=v0.12
 	BUSYBOX_IMAGE?=busybox:latest
-	DIND_IMAGE?=docker:17.12.0-dind
+	DIND_IMAGE?=docker:18.05.0-dind
 endif
 
 ifeq ($(ARCH),ppc64le)
