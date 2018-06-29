@@ -297,8 +297,9 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 	}
 
 	endpoint := api.NewWorkloadEndpoint()
-	endpoint.ObjectMeta.Namespace = hostname
 	endpoint.Name = wepName
+	//endpoint.ObjectMeta.Namespace = fmt.Sprintf("%s.%s", d.orchestratorID, networkName)
+	endpoint.ObjectMeta.Namespace = d.orchestratorID
 	endpoint.Spec.Endpoint = request.EndpointID
 	endpoint.Spec.Node = hostname
 	endpoint.Spec.Orchestrator = d.orchestratorID
@@ -327,19 +328,15 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 	f := false
 	networkName := ""
 	for _, p := range pools.Items {
-		if nid, ok := p.Annotations[DOCKER_LABEL_PREFIX+"network.ID"]; ok {
-			if nid == request.NetworkID {
-				f = true
-				networkName = p.ObjectMeta.Name
-				log.Debugf("Find ippool : %v\n", p.Name)
-				break
-			}
+		if nid, ok := p.Annotations[DOCKER_LABEL_PREFIX+"network.ID"]; ok && nid == request.NetworkID {
+			f = true
+			networkName = p.ObjectMeta.Name
+			log.Debugf("Find ippool : %v\n", p.Name)
+			break
 		}
 	}
 	if !f {
-		err := errors.New("The requested subnet must match the CIDR of a " +
-			"configured Calico IP Pool.",
-		)
+		err := errors.New("The requested subnet must match the CIDR of a configured Calico IP Pool.")
 		log.Errorln(err)
 		return nil, err
 	}
@@ -412,7 +409,7 @@ func (d NetworkDriver) DeleteEndpoint(request *network.DeleteEndpointRequest) er
 
 	if _, err = d.client.WorkloadEndpoints().Delete(
 		context.Background(),
-		hostname,
+		d.orchestratorID,
 		wepName,
 		options.DeleteOptions{}); err != nil {
 		err = errors.Wrapf(err, "Endpoint %v removal error", request.EndpointID)
@@ -462,7 +459,7 @@ func (d NetworkDriver) Join(request *network.JoinRequest) (*network.JoinResponse
 		log.Errorln(err)
 		return nil, err
 	}
-	wep, err := weps.Get(ctx, hostname, wepName, options.GetOptions{})
+	wep, err := weps.Get(ctx, d.orchestratorID, wepName, options.GetOptions{})
 	if err != nil {
 		log.Errorln(err)
 		return nil, err

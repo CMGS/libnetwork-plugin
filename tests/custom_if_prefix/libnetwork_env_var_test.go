@@ -38,7 +38,7 @@ var _ = Describe("Running plugin with custom ENV", func() {
 			nicName := "cali" + endpointID[:mathutils.MinInt(11, len(endpointID))]
 
 			// Check that the endpoint is created in etcd
-			key := fmt.Sprintf("/calico/resources/v3/projectcalico.org/workloadendpoints/%s/%s-libnetwork-libnetwork-%s", pool, pool, endpointID)
+			key := fmt.Sprintf("/calico/resources/v3/projectcalico.org/workloadendpoints/%s/%s-libnetwork-libnetwork-%s", "libnetwork", pool, endpointID)
 			endpointJSON := GetEtcd(key)
 			wep := map[string]interface{}{}
 			json.Unmarshal(endpointJSON, &wep)

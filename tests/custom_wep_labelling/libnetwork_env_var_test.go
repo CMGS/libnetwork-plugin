@@ -40,7 +40,7 @@ var _ = Describe("Running plugin with custom ENV", func() {
 			time.Sleep(time.Second)
 
 			// Check that the endpoint is created in etcd
-			key := fmt.Sprintf("/calico/resources/v3/projectcalico.org/workloadendpoints/%s/%s-libnetwork-libnetwork-%s", pool, pool, endpointID)
+			key := fmt.Sprintf("/calico/resources/v3/projectcalico.org/workloadendpoints/%s/%s-libnetwork-libnetwork-%s", "libnetwork", pool, endpointID)
 			endpointJSON := GetEtcd(key)
 			GinkgoWriter.Write(endpointJSON)
 			GinkgoWriter.Write([]byte("\n"))
