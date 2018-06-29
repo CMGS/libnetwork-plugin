@@ -1,12 +1,19 @@
 package default_environment
 
 import (
+	"encoding/json"
+	"fmt"
+	"math/rand"
+	"os"
 	"regexp"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gbytes"
 	. "github.com/onsi/gomega/gexec"
+	api "github.com/projectcalico/libcalico-go/lib/apis/v3"
+	mathutils "github.com/projectcalico/libnetwork-plugin/utils/math"
 	. "github.com/projectcalico/libnetwork-plugin/utils/test"
 )
 
@@ -122,164 +129,229 @@ var _ = Describe("Libnetwork Tests", func() {
 	//    --mac-address
 	//    --link-local-ip
 	//    --ip and --ip6
-	//	Describe("docker run", func() {
-	//		var name string
-	//		var pool string
-	//
-	//		pool = "testp"
-	//		subnet := "192.170.0.0/16"
-	//		CreatePool(pool, subnet)
-	//		nid := DockerString(fmt.Sprintf("docker network create --driver calico --ipam-driver calico-ipam --subnet %s %s ", subnet, pool))
-	//		UpdatePool(pool, subnet, nid)
-	//
-	//		BeforeEach(func() {
-	//			name = fmt.Sprintf("run%d", rand.Uint32())
-	//		})
-	//		AfterEach(func() {
-	//			DockerString(fmt.Sprintf("docker network rm %s", name))
-	//		})
-	//
-	//		It("creates a container on a network  and checks all assertions", func() {
-	//			// Create a container that will just sit in the background
-	//			DockerString(fmt.Sprintf("docker run --net %s -tid --name %s %s", pool, name, os.Getenv("BUSYBOX_IMAGE")))
-	//
-	//			// Gather information for assertions
-	//			dockerEndpoint := GetDockerEndpoint(name, pool)
-	//			ip := dockerEndpoint.IPAddress
-	//			mac := dockerEndpoint.MacAddress
-	//			endpointID := dockerEndpoint.EndpointID
-	//			nicName := "cali" + endpointID[:mathutils.MinInt(11, len(endpointID))]
-	//
-	//			// Check that the endpoint is created in etcd
-	//			key := fmt.Sprintf("/calico/resources/v3/projectcalico.org/workloadendpoints/%s/%s-libnetwork-libnetwork-%s", pool, pool, endpointID)
-	//			endpointJSON := GetEtcd(key)
-	//			wep := map[string]interface{}{}
-	//			json.Unmarshal(endpointJSON, &wep)
-	//			spec := wep["spec"].(map[string]interface{})
-	//			Expect(spec["interfaceName"].(string)).Should(Equal(nicName))
-	//
-	//			//// Check profile
-	//			profileJSON := GetEtcd(fmt.Sprintf("/calico/resources/v3/projectcalico.org/profiles/%s", pool))
-	//			profile := map[string]interface{}{}
-	//			json.Unmarshal(profileJSON, &profile)
-	//			meta := profile["metadata"].(map[string]interface{})
-	//			Expect(meta["name"].(string)).Should(Equal(pool))
-	//
-	//			// Check the interface exists on the Host - it has an autoassigned
-	//			// mac and ip, so don't check anything!
-	//			DockerString(fmt.Sprintf("ip addr show %s", nicName))
-	//
-	//			// Make sure the interface in the container exists and has the  assigned ip and mac
-	//			containerNICString := DockerString(fmt.Sprintf("docker exec -i %s ip addr", name))
-	//			Expect(containerNICString).Should(ContainSubstring(ip))
-	//			Expect(containerNICString).Should(ContainSubstring(mac))
-	//
-	//			// Make sure the container has the routes we expect
-	//			routes := DockerString(fmt.Sprintf("docker exec -i %s ip route", name))
-	//			Expect(routes).Should(Equal("default via 169.254.1.1 dev test0 \n169.254.1.1 dev test0 scope link"))
-	//
-	//			// Delete container
-	//			DockerString(fmt.Sprintf("docker rm -f %s", name))
-	//		})
-	//
-	//		// TODO Ensure that  a specific IP isn't possible without a user specified subnet
-	//		// TODO allocate specific IPs from specific pools - see test cases in https://github.com/projectcalico/libnetwork-plugin/pull/101/files/c8c0386a41a569fbef33fae545ad97fa061470ed#diff-3bca4eb4bf01d8f50e7babc5c90236cc
-	//		// TODO auto alloc IPs from a specific pool - see https://github.com/projectcalico/libnetwork-plugin/pull/101/files/c8c0386a41a569fbef33fae545ad97fa061470ed#diff-2667baf0dbc5ac5027aa29690f306535
-	//		It("creates a container with specific IP", func() {
-	//			// Create a container that will just sit in the background
-	//			chosen_ip := "192.170.50.51"
-	//			DockerString(fmt.Sprintf("docker run --ip %s --net %s -tid --name %s %s", chosen_ip, pool, name, os.Getenv("BUSYBOX_IMAGE")))
-	//
-	//			// Gather information for assertions
-	//			dockerEndpoint := GetDockerEndpoint(name, pool)
-	//			ip := dockerEndpoint.IPAddress
-	//			mac := dockerEndpoint.MacAddress
-	//			endpointID := dockerEndpoint.EndpointID
-	//			nicName := "cali" + endpointID[:mathutils.MinInt(11, len(endpointID))]
-	//
-	//			Expect(ip).Should(Equal(chosen_ip))
-	//
-	//			// Check that the endpoint is created in etcd
-	//			key := fmt.Sprintf("/calico/resources/v3/projectcalico.org/workloadendpoints/%s/%s-libnetwork-libnetwork-%s", pool, pool, endpointID)
-	//			endpointJSON := GetEtcd(key)
-	//			wep := map[string]interface{}{}
-	//			json.Unmarshal(endpointJSON, &wep)
-	//			spec := wep["spec"].(map[string]interface{})
-	//			Expect(spec["interfaceName"].(string)).Should(Equal(nicName))
-	//
-	//			//// Check profile
-	//			profileJSON := GetEtcd(fmt.Sprintf("/calico/resources/v3/projectcalico.org/profiles/%s", pool))
-	//			profile := map[string]interface{}{}
-	//			json.Unmarshal(profileJSON, &profile)
-	//			meta := profile["metadata"].(map[string]interface{})
-	//			Expect(meta["name"].(string)).Should(Equal(pool))
-	//
-	//			// Check the interface exists on the Host - it has an autoassigned
-	//			// mac and ip, so don't check anything!
-	//			DockerString(fmt.Sprintf("ip addr show %s", nicName))
-	//
-	//			// Make sure the interface in the container exists and has the  assigned ip and mac
-	//			containerNICString := DockerString(fmt.Sprintf("docker exec -i %s ip addr", name))
-	//			Expect(containerNICString).Should(ContainSubstring(ip))
-	//			Expect(containerNICString).Should(ContainSubstring(mac))
-	//
-	//			// Make sure the container has the routes we expect
-	//			routes := DockerString(fmt.Sprintf("docker exec -i %s ip route", name))
-	//			Expect(routes).Should(Equal("default via 169.254.1.1 dev test0 \n169.254.1.1 dev test0 scope link"))
-	//
-	//			// Delete container
-	//			DockerString(fmt.Sprintf("docker rm -f %s", name))
-	//		})
-	//	})
+	Describe("docker run", func() {
+		var name string
+		var pool string
 
-	//	Describe("docker run ipv6", func() {
-	//		var name string
-	//		BeforeEach(func() {
-	//			name = fmt.Sprintf("run%d", rand.Uint32())
-	//			DockerString(fmt.Sprintf("docker network create --ipv6 %s -d calico --ipam-driver calico-ipam", name))
-	//		})
-	//		AfterEach(func() {
-	//			DockerString(fmt.Sprintf("docker network rm %s", name))
-	//		})
-	//
-	//		It("creates a container on a network  and checks all assertions", func() {
-	//			// Create a container that will just sit in the background
-	//			DockerString(fmt.Sprintf("docker run --net %s -tid --name %s %s", name, name, os.Getenv("BUSYBOX_IMAGE")))
-	//
-	//			// Gather information for assertions
-	//			docker_endpoint := GetDockerEndpoint(name, name)
-	//			ip := docker_endpoint.IPAddress
-	//			ipv6 := docker_endpoint.GlobalIPv6Address
-	//			mac := docker_endpoint.MacAddress
-	//			endpoint_id := docker_endpoint.EndpointID
-	//			interface_name := "cali" + endpoint_id[:mathutils.MinInt(11, len(endpoint_id))]
-	//
-	//			// Check that the endpoint is created in etcd
-	//			etcd_endpoint := GetEtcdString(fmt.Sprintf("/calico/v1/host/test/workload/libnetwork/libnetwork/endpoint/%s", endpoint_id))
-	//			Expect(etcd_endpoint).Should(MatchJSON(fmt.Sprintf(
-	//				`{"state":"active","name":"%s","active_instance_id":"","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":["%s/128"]}`,
-	//				interface_name, mac, name, ip, ipv6)))
-	//
-	//			// Check the interface exists on the Host - it has an autoassigned
-	//			// mac and ip, so don't check anything!
-	//			DockerString(fmt.Sprintf("ip addr show %s", interface_name))
-	//			DockerString(fmt.Sprintf("ip -6 addr show %s", interface_name))
-	//
-	//			// Make sure the interface in the container exists and has the  assigned ipv6 and mac
-	//			container_interface_string := DockerString(fmt.Sprintf("docker exec -i %s ip addr", name))
-	//			Expect(container_interface_string).Should(ContainSubstring(ipv6))
-	//			Expect(container_interface_string).Should(ContainSubstring(mac))
-	//
-	//			// Make sure the container has the routes we expect
-	//			routes := DockerString(fmt.Sprintf("docker exec -i %s ip route", name))
-	//			Expect(routes).Should(Equal("default via 169.254.1.1 dev cali0 \n169.254.1.1 dev cali0 scope link"))
-	//			routes6 := DockerString(fmt.Sprintf("docker exec -i %s ip -6 route", name))
-	//			Expect(routes6).Should(MatchRegexp("default via fe80::.* dev cali0  metric 1024"))
-	//
-	//			// Delete container
-	//			DockerString(fmt.Sprintf("docker rm -f %s", name))
-	//		})
-	//	})
-	//Docker stop/rm - stop and rm are the same as far as the plugin is concerned
+		BeforeEach(func() {
+			name = fmt.Sprintf("run%d", rand.Uint32())
+			pool = fmt.Sprintf("testp%d", rand.Uint32())
+			subnet := "192.170.0.0/16"
+			CreatePool(pool, subnet)
+			nid := DockerString(fmt.Sprintf("docker network create --driver calico --ipam-driver calico-ipam --subnet %s %s ", subnet, pool))
+			UpdatePool(pool, subnet, nid)
+		})
+
+		AfterEach(func() {
+			DockerString(fmt.Sprintf("docker rm -f %s", name))
+			DockerString(fmt.Sprintf("docker network rm %s", pool))
+		})
+
+		It("creates a container on a network and checks all assertions", func() {
+			// Create a container that will just sit in the background
+			DockerString(fmt.Sprintf("docker run --net %s -tid --name %s %s", pool, name, os.Getenv("BUSYBOX_IMAGE")))
+
+			// Gather information for assertions
+			dockerEndpoint := GetDockerEndpoint(name, pool)
+			ip := dockerEndpoint.IPAddress
+			mac := dockerEndpoint.MacAddress
+			endpointID := dockerEndpoint.EndpointID
+			vethName := "cali" + endpointID[:mathutils.MinInt(11, len(endpointID))]
+
+			// Check that the endpoint is created in etcd
+			key := fmt.Sprintf("/calico/resources/v3/projectcalico.org/workloadendpoints/libnetwork/test-libnetwork-libnetwork-%s", endpointID)
+			endpointJSON := GetEtcd(key)
+			wep := api.NewWorkloadEndpoint()
+			json.Unmarshal(endpointJSON, &wep)
+			Expect(wep.Spec.InterfaceName).Should(Equal(vethName))
+
+			// Check profile
+			profile := api.NewProfile()
+			json.Unmarshal(GetEtcd(fmt.Sprintf("/calico/resources/v3/projectcalico.org/profiles/%s", pool)), &profile)
+			Expect(profile.Name).Should(Equal(pool))
+			Expect(len(profile.Labels)).Should(Equal(0))
+			//tags deprecated
+			Expect(profile.Spec.Ingress[0].Action).Should(Equal(api.Allow))
+			Expect(profile.Spec.Egress[0].Action).Should(Equal(api.Allow))
+
+			// Check the interface exists on the Host - it has an autoassigned
+			// mac and ip, so don't check anything!
+			DockerString(fmt.Sprintf("ip addr show %s", vethName))
+
+			// Make sure the interface in the container exists and has the  assigned ip and mac
+			containerNICString := DockerString(fmt.Sprintf("docker exec -i %s ip addr", name))
+			Expect(containerNICString).Should(ContainSubstring(ip))
+			Expect(containerNICString).Should(ContainSubstring(mac))
+
+			// Make sure the container has the routes we expect
+			routes := DockerString(fmt.Sprintf("docker exec -i %s ip route", name))
+			Expect(routes).Should(Equal("default via 169.254.1.1 dev cali0 \n169.254.1.1 dev cali0 scope link"))
+		})
+
+		It("creates a container with specific MAC", func() {
+			// Create a container that will just sit in the background
+			chosen_mac := "00:22:33:44:55:66"
+			DockerString(fmt.Sprintf("docker run --mac-address %s --net %s -tid --name %s %s", chosen_mac, pool, name, os.Getenv("BUSYBOX_IMAGE")))
+
+			// Gather information for assertions
+			dockerEndpoint := GetDockerEndpoint(name, pool)
+			ip := dockerEndpoint.IPAddress
+			mac := dockerEndpoint.MacAddress
+			endpointID := dockerEndpoint.EndpointID
+			vethName := "cali" + endpointID[:mathutils.MinInt(11, len(endpointID))]
+
+			// Make sure the discovered MAC is what we asked for
+			Expect(mac).Should(Equal(chosen_mac))
+
+			// Check that the endpoint is created in etcd
+			key := fmt.Sprintf("/calico/resources/v3/projectcalico.org/workloadendpoints/libnetwork/test-libnetwork-libnetwork-%s", endpointID)
+			endpointJSON := GetEtcd(key)
+			wep := api.NewWorkloadEndpoint()
+			json.Unmarshal(endpointJSON, &wep)
+			Expect(wep.Spec.InterfaceName).Should(Equal(vethName))
+
+			// Check the interface exists on the Host - it has an autoassigned
+			// mac and ip, so don't check anything!
+			DockerString(fmt.Sprintf("ip addr show %s", vethName))
+
+			// Make sure the interface in the container exists and has the  assigned ip and mac
+			containerNICString := DockerString(fmt.Sprintf("docker exec -i %s ip addr", name))
+			Expect(containerNICString).Should(ContainSubstring(ip))
+			Expect(containerNICString).Should(ContainSubstring(mac))
+
+			// Make sure the container has the routes we expect
+			routes := DockerString(fmt.Sprintf("docker exec -i %s ip route", name))
+			Expect(routes).Should(Equal("default via 169.254.1.1 dev cali0 \n169.254.1.1 dev cali0 scope link"))
+		})
+
+		PIt("creates a container with specific link local address", func() { // https://github.com/docker/docker/issues/28606
+			// Create a container that will just sit in the background
+			DockerString(fmt.Sprintf("docker run --link-local-ip 169.254.0.50 --net %s -tid --name %s %s", pool, name, os.Getenv("BUSYBOX_IMAGE")))
+
+			// Delete container
+			DockerString(fmt.Sprintf("docker rm -f %s", name))
+		})
+
+		// TODO Ensure that  a specific IP isn't possible without a user specified subnet
+		// TODO allocate specific IPs from specific pools - see test cases in https://github.com/projectcalico/libnetwork-plugin/pull/101/files/c8c0386a41a569fbef33fae545ad97fa061470ed#diff-3bca4eb4bf01d8f50e7babc5c90236cc
+		// TODO auto alloc IPs from a specific pool - see https://github.com/projectcalico/libnetwork-plugin/pull/101/files/c8c0386a41a569fbef33fae545ad97fa061470ed#diff-2667baf0dbc5ac5027aa29690f306535
+		It("creates a container with specific IP", func() {
+			// Create a container that will just sit in the background
+			chosen_ip := "192.170.50.51"
+			DockerString(fmt.Sprintf("docker run --ip %s --net %s -tid --name %s %s", chosen_ip, pool, name, os.Getenv("BUSYBOX_IMAGE")))
+
+			// Gather information for assertions
+			dockerEndpoint := GetDockerEndpoint(name, pool)
+			ip := dockerEndpoint.IPAddress
+			mac := dockerEndpoint.MacAddress
+			endpointID := dockerEndpoint.EndpointID
+			vethName := "cali" + endpointID[:mathutils.MinInt(11, len(endpointID))]
+
+			Expect(ip).Should(Equal(chosen_ip))
+
+			// Check that the endpoint is created in etcd
+			key := fmt.Sprintf("/calico/resources/v3/projectcalico.org/workloadendpoints/libnetwork/test-libnetwork-libnetwork-%s", endpointID)
+			endpointJSON := GetEtcd(key)
+			wep := api.NewWorkloadEndpoint()
+			json.Unmarshal(endpointJSON, &wep)
+			Expect(wep.Spec.InterfaceName).Should(Equal(vethName))
+
+			// Check the interface exists on the Host - it has an autoassigned
+			// mac and ip, so don't check anything!
+			DockerString(fmt.Sprintf("ip addr show %s", vethName))
+
+			// Make sure the interface in the container exists and has the  assigned ip and mac
+			containerNICString := DockerString(fmt.Sprintf("docker exec -i %s ip addr", name))
+			Expect(containerNICString).Should(ContainSubstring(ip))
+			Expect(containerNICString).Should(ContainSubstring(mac))
+
+			// Make sure the container has the routes we expect
+			routes := DockerString(fmt.Sprintf("docker exec -i %s ip route", name))
+			Expect(routes).Should(Equal("default via 169.254.1.1 dev cali0 \n169.254.1.1 dev cali0 scope link"))
+		})
+
+		It("creates a container with labels, but do not expect those in endpoint", func() {
+			// Create a container that will just sit in the background
+			DockerString(fmt.Sprintf("docker run --net %s -tid --label not=expected --label org.projectcalico.label.foo=bar --label org.projectcalico.label.baz=quux --name %s %s", pool, name, os.Getenv("BUSYBOX_IMAGE")))
+
+			// Gather information for assertions
+			dockerEndpoint := GetDockerEndpoint(name, pool)
+			endpointID := dockerEndpoint.EndpointID
+			vethName := "cali" + endpointID[:mathutils.MinInt(11, len(endpointID))]
+
+			// Sleep to allow the plugin to query the started container and update the WEP
+			// Alternative: query etcd until we hit jackpot or timeout
+			time.Sleep(time.Second)
+
+			// Check that the endpoint is created in etcd
+			key := fmt.Sprintf("/calico/resources/v3/projectcalico.org/workloadendpoints/libnetwork/test-libnetwork-libnetwork-%s", endpointID)
+			endpointJSON := GetEtcd(key)
+			wep := api.NewWorkloadEndpoint()
+			json.Unmarshal(endpointJSON, &wep)
+			Expect(wep.Spec.InterfaceName).Should(Equal(vethName))
+			_, ok := wep.ObjectMeta.Labels["foo"]
+			Expect(ok).Should(Equal(false))
+			_, ok = wep.ObjectMeta.Labels["baz"]
+			Expect(ok).Should(Equal(false))
+			_, ok = wep.ObjectMeta.Labels["not"]
+			Expect(ok).Should(Equal(false))
+		})
+	})
+
+	Describe("docker run ipv6", func() {
+		var name string
+		var pool string
+
+		BeforeEach(func() {
+			name = fmt.Sprintf("run%d", rand.Uint32())
+			pool = fmt.Sprintf("test6p%d", rand.Uint32())
+			subnet := "fdb7:472d:ff0b::/48"
+			CreatePool(pool, subnet)
+			nid := DockerString(fmt.Sprintf("docker network create --driver calico --ipam-driver calico-ipam --subnet %s --ipv6 %s ", subnet, pool))
+			UpdatePool(pool, subnet, nid)
+		})
+
+		AfterEach(func() {
+			DockerString(fmt.Sprintf("docker rm -f %s", name))
+			DockerString(fmt.Sprintf("docker network rm %s", pool))
+		})
+
+		It("creates a container on a network and checks all assertions", func() {
+			// Create a container that will just sit in the background
+			DockerString(fmt.Sprintf("docker run --net %s -tid --name %s %s", pool, name, os.Getenv("BUSYBOX_IMAGE")))
+
+			// Gather information for assertions
+			dockerEndpoint := GetDockerEndpoint(name, pool)
+			ipv6 := dockerEndpoint.GlobalIPv6Address
+			mac := dockerEndpoint.MacAddress
+			endpointID := dockerEndpoint.EndpointID
+			vethName := "cali" + endpointID[:mathutils.MinInt(11, len(endpointID))]
+
+			// Check that the endpoint is created in etcd
+			key := fmt.Sprintf("/calico/resources/v3/projectcalico.org/workloadendpoints/libnetwork/test-libnetwork-libnetwork-%s", endpointID)
+			endpointJSON := GetEtcd(key)
+			wep := api.NewWorkloadEndpoint()
+			json.Unmarshal(endpointJSON, &wep)
+			Expect(wep.Spec.InterfaceName).Should(Equal(vethName))
+
+			// Check the interface exists on the Host - it has an autoassigned
+			// mac and ip, so don't check anything!
+			DockerString(fmt.Sprintf("ip addr show %s", vethName))
+			DockerString(fmt.Sprintf("ip -6 addr show %s", vethName))
+
+			// Make sure the interface in the container exists and has the  assigned ip and mac
+			containerNICString := DockerString(fmt.Sprintf("docker exec -i %s ip addr", name))
+			Expect(containerNICString).Should(ContainSubstring(ipv6))
+			Expect(containerNICString).Should(ContainSubstring(mac))
+
+			// Make sure the container has the routes we expect
+			routes := DockerString(fmt.Sprintf("docker exec -i %s ip route", name))
+			Expect(routes).Should(Equal("default via 169.254.1.1 dev cali0 \n169.254.1.1 dev cali0 scope link"))
+			routes6 := DockerString(fmt.Sprintf("docker exec -i %s ip -6 route", name))
+			Expect(routes6).Should(MatchRegexp("default via fe80::.* dev cali0  metric 1024"))
+
+		})
+	})
+	//docker stop/rm - stop and rm are the same as far as the plugin is concerned
 	// TODO - check that the endpoint is removed from etcd and that the  veth is removed
 })

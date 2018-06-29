@@ -46,6 +46,14 @@ func GetDockerEndpoint(container, network string) *network.EndpointSettings {
 	return info.NetworkSettings.Networks[network]
 }
 
+func GetNotExists(path string) bool {
+	resp, err := kapi.Get(context.Background(), path)
+	if err != nil {
+		panic(err)
+	}
+	return len(resp.Kvs) == 0
+}
+
 // GetEtcd gets a string for a given etcd path
 func GetEtcd(path string) []byte {
 	// TODO - would be better to use libcalico to get data rather than talking to etcd direct

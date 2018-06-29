@@ -8,6 +8,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	api "github.com/projectcalico/libcalico-go/lib/apis/v3"
 	mathutils "github.com/projectcalico/libnetwork-plugin/utils/math"
 	. "github.com/projectcalico/libnetwork-plugin/utils/test"
 )
@@ -35,26 +36,27 @@ var _ = Describe("Running plugin with custom ENV", func() {
 			ip := dockerEndpoint.IPAddress
 			mac := dockerEndpoint.MacAddress
 			endpointID := dockerEndpoint.EndpointID
-			nicName := "cali" + endpointID[:mathutils.MinInt(11, len(endpointID))]
+			vethName := "cali" + endpointID[:mathutils.MinInt(11, len(endpointID))]
 
 			// Check that the endpoint is created in etcd
-			key := fmt.Sprintf("/calico/resources/v3/projectcalico.org/workloadendpoints/%s/%s-libnetwork-libnetwork-%s", "libnetwork", pool, endpointID)
+			key := fmt.Sprintf("/calico/resources/v3/projectcalico.org/workloadendpoints/libnetwork/test-libnetwork-libnetwork-%s", endpointID)
 			endpointJSON := GetEtcd(key)
-			wep := map[string]interface{}{}
+			wep := api.NewWorkloadEndpoint()
 			json.Unmarshal(endpointJSON, &wep)
-			spec := wep["spec"].(map[string]interface{})
-			Expect(spec["interfaceName"].(string)).Should(Equal(nicName))
+			Expect(wep.Spec.InterfaceName).Should(Equal(vethName))
 
-			//// Check profile
-			profileJSON := GetEtcd(fmt.Sprintf("/calico/resources/v3/projectcalico.org/profiles/%s", pool))
-			profile := map[string]interface{}{}
-			json.Unmarshal(profileJSON, &profile)
-			meta := profile["metadata"].(map[string]interface{})
-			Expect(meta["name"].(string)).Should(Equal(pool))
+			// Check profile
+			profile := api.NewProfile()
+			json.Unmarshal(GetEtcd(fmt.Sprintf("/calico/resources/v3/projectcalico.org/profiles/%s", pool)), &profile)
+			Expect(profile.Name).Should(Equal(pool))
+			Expect(len(profile.Labels)).Should(Equal(0))
+			//tags deprecated
+			Expect(profile.Spec.Ingress[0].Action).Should(Equal(api.Allow))
+			Expect(profile.Spec.Egress[0].Action).Should(Equal(api.Allow))
 
 			// Check the interface exists on the Host - it has an autoassigned
 			// mac and ip, so don't check anything!
-			DockerString(fmt.Sprintf("ip addr show %s", nicName))
+			DockerString(fmt.Sprintf("ip addr show %s", vethName))
 
 			// Make sure the interface in the container exists and has the  assigned ip and mac
 			containerNICString := DockerString(fmt.Sprintf("docker exec -i %s ip addr", name))
