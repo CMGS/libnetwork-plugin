@@ -117,8 +117,6 @@ func (i IpamDriver) RequestPool(request *ipam.RequestPoolRequest) (*ipam.Request
 			log.Errorln(err)
 			return nil, err
 		}
-
-		fmt.Println(pool, poolID)
 	}
 
 	// We use static pool ID and CIDR. We don't need to signal the

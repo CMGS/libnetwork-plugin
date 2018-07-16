@@ -210,10 +210,10 @@ func (d NetworkDriver) CreateNetwork(request *network.CreateNetworkRequest) erro
 	}
 
 	logutils.JSONMessage("CreateNetwork response", map[string]string{})
-	return d.populatePoolLabel(ps, request.NetworkID)
+	return d.populatePoolAnnotation(ps, request.NetworkID)
 }
 
-func (d NetworkDriver) populatePoolLabel(pools []string, networkID string) error {
+func (d NetworkDriver) populatePoolAnnotation(pools []string, networkID string) error {
 	ctx := context.Background()
 	poolClient := d.client.IPPools()
 	ipPools, err := poolClient.List(ctx, options.ListOptions{})
@@ -233,6 +233,7 @@ func (d NetworkDriver) populatePoolLabel(pools []string, networkID string) error
 				_, err = poolClient.Update(ctx, &ipPool, options.SetOptions{})
 				if err != nil {
 					log.Errorln(err)
+					return err
 				}
 			}
 		}
@@ -298,7 +299,6 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 
 	endpoint := api.NewWorkloadEndpoint()
 	endpoint.Name = wepName
-	//endpoint.ObjectMeta.Namespace = fmt.Sprintf("%s.%s", d.orchestratorID, networkName)
 	endpoint.ObjectMeta.Namespace = d.orchestratorID
 	endpoint.Spec.Endpoint = request.EndpointID
 	endpoint.Spec.Node = hostname
@@ -639,6 +639,12 @@ RETRY_CONTAINER_INSPECT:
 
 	log.Debugf("Container inspected, processing labels now (T=%s)", time.Since(start))
 
+RETRY_UPDATE_ENDPOINT:
+	if time.Now().After(deadline) {
+		log.Errorf("Updating endpoint timed out. Took %s", time.Since(start))
+		return
+	}
+
 	// make sure we have a labels map in the workloadEndpoint
 	if endpoint.ObjectMeta.Labels == nil {
 		endpoint.ObjectMeta.Labels = map[string]string{}
@@ -660,18 +666,19 @@ RETRY_CONTAINER_INSPECT:
 		return
 	}
 
-	rev, err := strconv.Atoi(endpoint.ObjectMeta.ResourceVersion)
-	if err != nil {
-		log.Errorln(err)
-		return
-	}
-	endpoint.SetResourceVersion(fmt.Sprintf("%d", rev+1))
 	// lets update the workloadEndpoint
 	_, err = d.client.WorkloadEndpoints().Update(ctx, endpoint, options.SetOptions{})
 	if err != nil {
 		err = errors.Wrapf(err, "Unable to update WorkloadEndpoint with labels (T=%s)", time.Since(start))
-		log.Errorln(err)
-		return
+		log.Warningln(err)
+		endpoint, err = d.client.WorkloadEndpoints().Get(ctx, endpoint.Namespace, endpoint.Name, options.GetOptions{})
+		if err != nil {
+			err = errors.Wrapf(err, "Unable to get WorkloadEndpoint (T=%s)", time.Since(start))
+			log.Errorln(err)
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+		goto RETRY_UPDATE_ENDPOINT
 	}
 
 	log.Infof("WorkloadEndpoint %s updated with labels: %v (T=%s)",

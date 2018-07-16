@@ -74,7 +74,7 @@ func GetEtcdString(path string) string {
 
 // CreatePool creates a pool in etcd
 func CreatePool(pool, cidr string) {
-	data := fmt.Sprintf(`{"kind":"IPPool","apiVersion":"projectcalico.org/v3","metadata":{"name":"%s", "creationTimestamp":"2018-06-05T11:47:45Z"},"spec":{"cidr":"%s","ipipMode":"CrossSubnet","natOutgoing":true}}`, pool, cidr)
+	data := fmt.Sprintf(`{"kind":"IPPool","apiVersion":"projectcalico.org/v3","metadata":{"name":"%s", "creationTimestamp":"2018-06-05T11:47:45Z", "uid": "431f5c3e-68b6-11e8-8f6c-08002749ff23"},"spec":{"cidr":"%s","ipipMode":"Never","natOutgoing":true}}`, pool, cidr)
 	key := fmt.Sprintf(`/calico/resources/v3/projectcalico.org/ippools/%s`, pool)
 	_, err := kapi.Put(context.Background(), key, data)
 	if err != nil {
@@ -84,7 +84,7 @@ func CreatePool(pool, cidr string) {
 
 // Update pool with network id
 func UpdatePool(pool, cidr, nid string) {
-	data := fmt.Sprintf(`{"kind":"IPPool","apiVersion":"projectcalico.org/v3","metadata":{"name":"%s","uid":"431f5c3e-68b6-11e8-8f6c-08002749ff23","creationTimestamp":"2018-06-05T11:47:45Z","annotations":{"org.projectcalico.label.network.ID":"%s"}},"spec":{"cidr":"%s","ipipMode":"CrossSubnet","natOutgoing":true}}`, pool, nid, cidr)
+	data := fmt.Sprintf(`{"kind":"IPPool","apiVersion":"projectcalico.org/v3","metadata":{"name":"%s","uid":"431f5c3e-68b6-11e8-8f6c-08002749ff23","creationTimestamp":"2018-06-05T11:47:45Z","annotations":{"org.projectcalico.label.network.ID":"%s"}, "uid": "431f5c3e-68b6-11e8-8f6c-08002749ff23"},"spec":{"cidr":"%s","ipipMode":"Nerver","natOutgoing":true}}`, pool, nid, cidr)
 	key := fmt.Sprintf(`/calico/resources/v3/projectcalico.org/ippools/%s`, pool)
 	_, err := kapi.Put(context.Background(), key, data)
 	if err != nil {
